@@ -6,7 +6,7 @@ go_library(
     name = "go_default_library",
     srcs = ["print.go"],
     deps = [
-        "//pkg/version:go_default_library",
+        "//broker/pkg/version:go_default_library",
         "@com_github_spf13_cobra//:go_default_library",
     ],
 )

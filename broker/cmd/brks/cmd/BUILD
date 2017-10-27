@@ -11,7 +11,7 @@ go_library(
     visibility = ["//cmd:__subpackages__"],
     deps = [
         "//cmd/shared:go_default_library",
-        "//pkg/server:go_default_library",
+        "//broker/pkg/server:go_default_library",
         "@com_github_spf13_cobra//:go_default_library",
     ],
 )

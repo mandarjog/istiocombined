@@ -48,8 +48,8 @@ import (
 	meta_v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 
-	"istio.io/broker/pkg/model/config"
-	"istio.io/broker/pkg/testing/mock"
+	"istio.io/istio/broker/pkg/model/config"
+	"istio.io/istio/broker/pkg/testing/mock"
 )
 
 var knownTypes = map[string]struct {
