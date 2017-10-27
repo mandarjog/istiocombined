@@ -28,7 +28,7 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/cache"
 
-	"istio.io/pilot/model"
+	"istio.io/istio/pilot/model"
 )
 
 const (
@@ -182,7 +182,7 @@ func (c *Controller) Run(stop <-chan struct{}) {
 }
 
 // Services implements a service catalog operation
-func (c *Controller) Services() ([]*model.Service, error) {
+func (c *Controller) Services() []*model.Service {
 	list := c.services.informer.GetStore().List()
 	out := make([]*model.Service, 0, len(list))
 
@@ -191,23 +191,23 @@ func (c *Controller) Services() ([]*model.Service, error) {
 			out = append(out, svc)
 		}
 	}
-	return out, nil
+	return out
 }
 
 // GetService implements a service catalog operation
-func (c *Controller) GetService(hostname string) (*model.Service, error) {
+func (c *Controller) GetService(hostname string) (*model.Service, bool) {
 	name, namespace, err := parseHostname(hostname)
 	if err != nil {
 		glog.V(2).Infof("GetService(%s) => error %v", hostname, err)
-		return nil, err
+		return nil, false
 	}
 	item, exists := c.serviceByKey(name, namespace)
 	if !exists {
-		return nil, nil
+		return nil, false
 	}
 
 	svc := convertService(*item, c.domainSuffix)
-	return svc, nil
+	return svc, svc != nil
 }
 
 // serviceByKey retrieves a service by name and namespace
@@ -263,23 +263,23 @@ func (c *Controller) ManagementPorts(addr string) model.PortList {
 
 // Instances implements a service catalog operation
 func (c *Controller) Instances(hostname string, ports []string,
-	labelsList model.LabelsCollection) ([]*model.ServiceInstance, error) {
+	labelsList model.LabelsCollection) []*model.ServiceInstance {
 	// Get actual service by name
 	name, namespace, err := parseHostname(hostname)
 	if err != nil {
 		glog.V(2).Infof("parseHostname(%s) => error %v", hostname, err)
-		return nil, err
+		return nil
 	}
 
 	item, exists := c.serviceByKey(name, namespace)
 	if !exists {
-		return nil, nil
+		return nil
 	}
 
 	// Locate all ports in the actual service
 	svc := convertService(*item, c.domainSuffix)
 	if svc == nil {
-		return nil, nil
+		return nil
 	}
 	svcPorts := make(map[string]*model.Port)
 	for _, port := range ports {
@@ -326,14 +326,14 @@ func (c *Controller) Instances(hostname string, ports []string,
 					}
 				}
 			}
-			return out, nil
+			return out
 		}
 	}
-	return nil, nil
+	return nil
 }
 
 // HostInstances implements a service catalog operation
-func (c *Controller) HostInstances(addrs map[string]bool) ([]*model.ServiceInstance, error) {
+func (c *Controller) HostInstances(addrs map[string]bool) []*model.ServiceInstance {
 	var out []*model.ServiceInstance
 	for _, item := range c.endpoints.informer.GetStore().List() {
 		ep := *item.(*v1.Endpoints)
@@ -376,7 +376,7 @@ func (c *Controller) HostInstances(addrs map[string]bool) ([]*model.ServiceInsta
 			}
 		}
 	}
-	return out, nil
+	return out
 }
 
 // GetIstioServiceAccounts returns the Istio service accounts running a serivce
@@ -388,12 +388,7 @@ func (c *Controller) GetIstioServiceAccounts(hostname string, ports []string) []
 
 	// Get the service accounts running service within Kubernetes. This is reflected by the pods that
 	// the service is deployed on, and the service accounts of the pods.
-	instances, err := c.Instances(hostname, ports, model.LabelsCollection{})
-	if err != nil {
-		glog.Warningf("Instances(%s) error: %v", hostname, err)
-		return nil
-	}
-	for _, si := range instances {
+	for _, si := range c.Instances(hostname, ports, model.LabelsCollection{}) {
 		if si.ServiceAccount != "" {
 			saSet[si.ServiceAccount] = true
 		}
@@ -401,12 +396,8 @@ func (c *Controller) GetIstioServiceAccounts(hostname string, ports []string) []
 
 	// Get the service accounts running the service, if it is deployed on VMs. This is retrieved
 	// from the service annotation explicitly set by the operators.
-	svc, err := c.GetService(hostname)
-	if err != nil {
-		glog.Warningf("GetService(%s) error: %v", hostname, err)
-		return nil
-	}
-	if svc == nil {
+	svc, exists := c.GetService(hostname)
+	if !exists {
 		glog.V(2).Infof("GetService(%s) error: service does not exist", hostname)
 		return nil
 	}

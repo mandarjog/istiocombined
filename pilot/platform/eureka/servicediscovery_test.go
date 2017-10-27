@@ -15,34 +15,28 @@
 package eureka
 
 import (
-	"errors"
 	"fmt"
 	"sort"
 	"testing"
 
-	"istio.io/pilot/model"
+	"istio.io/istio/pilot/model"
 )
 
-type mockClient struct {
-	apps      []*application
-	clientErr error
-}
+type mockClient []*application
 
-func (m *mockClient) Applications() ([]*application, error) {
-	return m.apps, m.clientErr
+func (apps *mockClient) Applications() ([]*application, error) {
+	return *apps, nil
 }
 
 var _ Client = (*mockClient)(nil)
 
 func TestServiceDiscoveryServices(t *testing.T) {
 	cl := &mockClient{
-		apps: []*application{
-			{
-				Name: appName("a.default.svc.local"),
-				Instances: []*instance{
-					makeInstance("a.default.svc.local", "10.0.0.1", 9090, 8080, nil),
-					makeInstance("b.default.svc.local", "10.0.0.2", 7070, -1, nil),
-				},
+		{
+			Name: appName("a.default.svc.local"),
+			Instances: []*instance{
+				makeInstance("a.default.svc.local", "10.0.0.1", 9090, 8080, nil),
+				makeInstance("b.default.svc.local", "10.0.0.2", 7070, -1, nil),
 			},
 		},
 	}
@@ -52,52 +46,10 @@ func TestServiceDiscoveryServices(t *testing.T) {
 		makeService("b.default.svc.local", []int{7070}, nil),
 	}
 
-	services, err := sd.Services()
-	if err != nil {
-		t.Errorf("Services() encountered unexpected error: %v", err)
-	}
+	services := sd.Services()
 	sortServices(services)
 	if err := compare(t, services, expectedServices); err != nil {
 		t.Error(err)
-	}
-}
-
-func TestServiceDiscoveryClientError(t *testing.T) {
-	cl := &mockClient{
-		clientErr: errors.New("client Applications() error"),
-	}
-	sd := NewServiceDiscovery(cl)
-
-	services, err := sd.Services()
-	if err == nil {
-		t.Error("Services() should return error")
-	}
-	if services != nil {
-		t.Error("Services() should return nil on error")
-	}
-
-	service, err := sd.GetService("hostname")
-	if err == nil {
-		t.Error("GetService() should return error")
-	}
-	if service != nil {
-		t.Error("GetService() should return nil on error")
-	}
-
-	instances, err := sd.Instances("hostname", nil, nil)
-	if err == nil {
-		t.Error("Instances() should return error")
-	}
-	if instances != nil {
-		t.Error("Instances() should return nil on error")
-	}
-
-	hostInstances, err := sd.HostInstances(make(map[string]bool))
-	if err == nil {
-		t.Error("HostInstances() should return error")
-	}
-	if hostInstances != nil {
-		t.Error("HostInstances() should return nil on error")
 	}
 }
 
@@ -107,32 +59,24 @@ func TestServiceDiscoveryGetService(t *testing.T) {
 	hostDNE := "does.not.exist.local"
 
 	cl := &mockClient{
-		apps: []*application{
-			{
-				Name: "APP",
-				Instances: []*instance{
-					makeInstance(host, "10.0.0.1", 9090, 8080, nil),
-					makeInstance(hostAlt, "10.0.0.2", 7070, -1, nil),
-				},
+		{
+			Name: "APP",
+			Instances: []*instance{
+				makeInstance(host, "10.0.0.1", 9090, 8080, nil),
+				makeInstance(hostAlt, "10.0.0.2", 7070, -1, nil),
 			},
 		},
 	}
 	sd := NewServiceDiscovery(cl)
 
-	service, err := sd.GetService(hostDNE)
-	if err != nil {
-		t.Errorf("GetService() encountered unexpected error: %v", err)
-	}
-	if service != nil {
-		t.Errorf("GetService(%q) => should not exist, got %s", hostDNE, service.Hostname)
+	_, exists := sd.GetService(hostDNE)
+	if exists {
+		t.Errorf("GetService(%q) => %t, want false", hostDNE, exists)
 	}
 
-	service, err = sd.GetService(host)
-	if err != nil {
-		t.Errorf("GetService(%q) encountered unexpected error: %v", host, err)
-	}
-	if service == nil {
-		t.Errorf("GetService(%q) => should exist", host)
+	service, exists := sd.GetService(host)
+	if !exists {
+		t.Errorf("GetService(%q) => %t, want true", host, exists)
 	}
 	if service.Hostname != host {
 		t.Errorf("GetService(%q) => %q, want %q", host, service.Hostname, host)
@@ -141,14 +85,12 @@ func TestServiceDiscoveryGetService(t *testing.T) {
 
 func TestServiceDiscoveryHostInstances(t *testing.T) {
 	cl := &mockClient{
-		apps: []*application{
-			{
-				Name: appName("a.default.svc.local"),
-				Instances: []*instance{
-					makeInstance("a.default.svc.local", "10.0.0.1", 9090, -1, nil),
-					makeInstance("a.default.svc.local", "10.0.0.2", 8080, -1, nil),
-					makeInstance("b.default.svc.local", "10.0.0.1", 7070, -1, nil),
-				},
+		{
+			Name: appName("a.default.svc.local"),
+			Instances: []*instance{
+				makeInstance("a.default.svc.local", "10.0.0.1", 9090, -1, nil),
+				makeInstance("a.default.svc.local", "10.0.0.2", 8080, -1, nil),
+				makeInstance("b.default.svc.local", "10.0.0.1", 7070, -1, nil),
 			},
 		},
 	}
@@ -173,10 +115,7 @@ func TestServiceDiscoveryHostInstances(t *testing.T) {
 	}
 
 	for _, tt := range instanceTests {
-		instances, err := sd.HostInstances(tt.addrs)
-		if err != nil {
-			t.Errorf("HostInstances() encountered unexpected error: %v", err)
-		}
+		instances := sd.HostInstances(tt.addrs)
 		sortServiceInstances(instances)
 		if err := compare(t, instances, tt.instances); err != nil {
 			t.Error(err)
@@ -186,14 +125,12 @@ func TestServiceDiscoveryHostInstances(t *testing.T) {
 
 func TestServiceDiscoveryInstances(t *testing.T) {
 	cl := &mockClient{
-		apps: []*application{
-			{
-				Name: appName("a.default.svc.local"),
-				Instances: []*instance{
-					makeInstance("a.default.svc.local", "10.0.0.1", 9090, -1, metadata{"spam": "coolaid"}),
-					makeInstance("a.default.svc.local", "10.0.0.2", 8080, -1, metadata{"kit": "kat"}),
-					makeInstance("b.default.svc.local", "10.0.0.1", 7070, -1, nil),
-				},
+		{
+			Name: appName("a.default.svc.local"),
+			Instances: []*instance{
+				makeInstance("a.default.svc.local", "10.0.0.1", 9090, -1, metadata{"spam": "coolaid"}),
+				makeInstance("a.default.svc.local", "10.0.0.2", 8080, -1, metadata{"kit": "kat"}),
+				makeInstance("b.default.svc.local", "10.0.0.1", 7070, -1, nil),
 			},
 		},
 	}
@@ -236,10 +173,7 @@ func TestServiceDiscoveryInstances(t *testing.T) {
 	}
 
 	for _, c := range serviceInstanceTests {
-		instances, err := sd.Instances(c.hostname, c.ports, c.labels)
-		if err != nil {
-			t.Errorf("Instances() encountered unexpected error: %v", err)
-		}
+		instances := sd.Instances(c.hostname, c.ports, c.labels)
 		sortServiceInstances(instances)
 		if err := compare(t, instances, c.instances); err != nil {
 			t.Error(err)

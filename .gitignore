@@ -1,0 +1,17 @@
+# Eclipse artifacts
+.project
+.pydevproject
+# Intellij
+*.iml
+.idea/
+# Bazel
+/bazel-*
+vendor
+# Generated pb files
+*.pb.go
+# vi backups
+*.bak
+# Vm setup generated files
+cluster.env
+kubedns
+*.pem

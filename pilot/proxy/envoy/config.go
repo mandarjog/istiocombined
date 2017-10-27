@@ -17,7 +17,6 @@ package envoy
 import (
 	"crypto/sha1"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -30,8 +29,8 @@ import (
 	multierror "github.com/hashicorp/go-multierror"
 
 	proxyconfig "istio.io/api/proxy/v1/config"
-	"istio.io/pilot/model"
-	"istio.io/pilot/proxy"
+	"istio.io/istio/pilot/model"
+	"istio.io/istio/pilot/proxy"
 )
 
 // Config generation main functions.
@@ -129,54 +128,32 @@ func buildConfig(config proxyconfig.ProxyConfig, pilotSAN []string) *Config {
 }
 
 // buildListeners produces a list of listeners and referenced clusters for all proxies
-func buildListeners(env proxy.Environment, node proxy.Node) (Listeners, error) {
+func buildListeners(env proxy.Environment, node proxy.Node) Listeners {
 	switch node.Type {
 	case proxy.Sidecar, proxy.Router:
-		instances, err := env.HostInstances(map[string]bool{node.IPAddress: true})
-		if err != nil {
-			return nil, err
-		}
-		services, err := env.Services()
-		if err != nil {
-			return nil, err
-		}
+		instances := env.HostInstances(map[string]bool{node.IPAddress: true})
 		listeners, _ := buildSidecarListenersClusters(env.Mesh, instances,
-			services, env.ManagementPorts(node.IPAddress), node, env.IstioConfigStore)
-		return listeners, nil
+			env.Services(), env.ManagementPorts(node.IPAddress), node, env.IstioConfigStore)
+		return listeners
 	case proxy.Ingress:
-		instances, err := env.HostInstances(map[string]bool{node.IPAddress: true})
-		if err != nil {
-			return Listeners{}, err
-		}
-		return buildIngressListeners(env.Mesh, instances, env.ServiceDiscovery, env.IstioConfigStore, node), nil
+		instances := env.HostInstances(map[string]bool{node.IPAddress: true})
+		return buildIngressListeners(env.Mesh, instances, env.ServiceDiscovery, env.IstioConfigStore, node)
 	}
-	return nil, nil
+	return nil
 }
 
-func buildClusters(env proxy.Environment, node proxy.Node) (Clusters, error) {
+func buildClusters(env proxy.Environment, node proxy.Node) Clusters {
 	var clusters Clusters
 	var instances []*model.ServiceInstance
-	var err error
 	switch node.Type {
 	case proxy.Sidecar, proxy.Router:
-		instances, err = env.HostInstances(map[string]bool{node.IPAddress: true})
-		if err != nil {
-			return clusters, err
-		}
-		services, err := env.Services()
-		if err != nil {
-			return clusters, err
-		}
+		instances = env.HostInstances(map[string]bool{node.IPAddress: true})
 		_, clusters = buildSidecarListenersClusters(env.Mesh, instances,
-			services, env.ManagementPorts(node.IPAddress), node, env.IstioConfigStore)
+			env.Services(), env.ManagementPorts(node.IPAddress), node, env.IstioConfigStore)
 	case proxy.Ingress:
-		instances, err = env.HostInstances(map[string]bool{node.IPAddress: true})
+		instances = env.HostInstances(map[string]bool{node.IPAddress: true})
 		httpRouteConfigs, _ := buildIngressRoutes(env.Mesh, instances, env.ServiceDiscovery, env.IstioConfigStore)
 		clusters = httpRouteConfigs.clusters().normalize()
-	}
-
-	if err != nil {
-		return clusters, err
 	}
 
 	// apply custom policies for outbound clusters
@@ -189,7 +166,7 @@ func buildClusters(env proxy.Environment, node proxy.Node) (Clusters, error) {
 		clusters = append(clusters, buildMixerCluster(env.Mesh, node, env.MixerSAN))
 	}
 
-	return clusters, nil
+	return clusters
 }
 
 // buildSidecarListenersClusters produces a list of listeners and referenced clusters for sidecar proxies
@@ -286,40 +263,31 @@ func buildSidecarListenersClusters(
 // listener, or the special value for _all routes_.
 // TODO: this can be optimized by querying for a specific HTTP port in the table
 func buildRDSRoute(mesh *proxyconfig.MeshConfig, node proxy.Node, routeName string,
-	discovery model.ServiceDiscovery, config model.IstioConfigStore) (*HTTPRouteConfig, error) {
+	discovery model.ServiceDiscovery, config model.IstioConfigStore) *HTTPRouteConfig {
 	var httpConfigs HTTPRouteConfigs
 	switch node.Type {
 	case proxy.Ingress:
-		instances, err := discovery.HostInstances(map[string]bool{node.IPAddress: true})
-		if err != nil {
-			return nil, err
-		}
+		instances := discovery.HostInstances(map[string]bool{node.IPAddress: true})
 		httpConfigs, _ = buildIngressRoutes(mesh, instances, discovery, config)
 	case proxy.Sidecar, proxy.Router:
-		instances, err := discovery.HostInstances(map[string]bool{node.IPAddress: true})
-		if err != nil {
-			return nil, err
-		}
-		services, err := discovery.Services()
-		if err != nil {
-			return nil, err
-		}
+		instances := discovery.HostInstances(map[string]bool{node.IPAddress: true})
+		services := discovery.Services()
 		httpConfigs = buildOutboundHTTPRoutes(mesh, node, instances, services, config)
 		httpConfigs = buildEgressHTTPRoutes(mesh, node, instances, config, httpConfigs)
 	default:
-		return nil, errors.New("Unrecognized node type")
+		return nil
 	}
 
 	if routeName == RDSAll {
-		return httpConfigs.combine(), nil
+		return httpConfigs.combine()
 	}
 
 	port, err := strconv.Atoi(routeName)
 	if err != nil {
-		return nil, err
+		return nil
 	}
 
-	return httpConfigs[port], nil
+	return httpConfigs[port]
 }
 
 // buildHTTPListener constructs a listener for the network interface address and port.

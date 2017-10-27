@@ -36,11 +36,11 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 
-	"istio.io/pilot/adapter/config/crd"
-	"istio.io/pilot/cmd"
-	"istio.io/pilot/model"
-	"istio.io/pilot/platform/kube"
-	"istio.io/pilot/tools/version"
+	"istio.io/istio/pilot/adapter/config/crd"
+	"istio.io/istio/pilot/cmd"
+	"istio.io/istio/pilot/model"
+	"istio.io/istio/pilot/platform/kube"
+	"istio.io/istio/pilot/tools/version"
 )
 
 const (
@@ -68,7 +68,7 @@ var (
 		Short:             "Istio control interface",
 		SilenceUsage:      true,
 		DisableAutoGenTag: true,
-		Long: `
+		Long: fmt.Sprintf(`
 Istio configuration command line utility.
 
 Create, list, modify, and delete configuration resources in the Istio
@@ -76,12 +76,12 @@ system.
 
 Available routing and traffic management configuration types:
 
-	[routerule ingressrule egressrule destinationpolicy]
+	%v
 
 See http://istio.io/docs/reference for an overview of routing rules
 and destination policies.
 
-`,
+`, model.IstioConfigTypes.Types()),
 		PersistentPreRun: func(cmd *cobra.Command, args []string) {
 			defaultNamespace = getDefaultNamespace(kubeconfig)
 		},

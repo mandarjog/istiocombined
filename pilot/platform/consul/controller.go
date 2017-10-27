@@ -20,7 +20,7 @@ import (
 	"github.com/golang/glog"
 	"github.com/hashicorp/consul/api"
 
-	"istio.io/pilot/model"
+	"istio.io/istio/pilot/model"
 )
 
 // Controller communicates with Consul and monitors for changes
@@ -44,59 +44,53 @@ func NewController(addr, datacenter string, interval time.Duration) (*Controller
 }
 
 // Services list declarations of all services in the system
-func (c *Controller) Services() ([]*model.Service, error) {
-	data, err := c.getServices()
-	if err != nil {
-		return nil, err
-	}
+func (c *Controller) Services() []*model.Service {
+	data := c.getServices()
 
 	services := make([]*model.Service, 0, len(data))
 	for name := range data {
-		endpoints, err := c.getCatalogService(name, nil)
-		if err != nil {
-			return nil, err
-		}
+		endpoints := c.getCatalogService(name, nil)
 		services = append(services, convertService(endpoints))
 	}
 
-	return services, nil
+	return services
 }
 
 // GetService retrieves a service by host name if it exists
-func (c *Controller) GetService(hostname string) (*model.Service, error) {
+func (c *Controller) GetService(hostname string) (*model.Service, bool) {
 	// Get actual service by name
 	name, err := parseHostname(hostname)
 	if err != nil {
 		glog.V(2).Infof("parseHostname(%s) => error %v", hostname, err)
-		return nil, err
+		return nil, false
 	}
 
-	endpoints, err := c.getCatalogService(name, nil)
-	if len(endpoints) == 0 || err != nil {
-		return nil, err
+	endpoints := c.getCatalogService(name, nil)
+	if len(endpoints) == 0 {
+		return nil, false
 	}
 
-	return convertService(endpoints), nil
+	return convertService(endpoints), true
 }
 
-func (c *Controller) getServices() (map[string][]string, error) {
+func (c *Controller) getServices() map[string][]string {
 	data, _, err := c.client.Catalog().Services(nil)
 	if err != nil {
 		glog.Warningf("Could not retrieve services from consul: %v", err)
-		return nil, err
+		return make(map[string][]string)
 	}
 
-	return data, nil
+	return data
 }
 
-func (c *Controller) getCatalogService(name string, q *api.QueryOptions) ([]*api.CatalogService, error) {
+func (c *Controller) getCatalogService(name string, q *api.QueryOptions) []*api.CatalogService {
 	endpoints, _, err := c.client.Catalog().Service(name, "", q)
 	if err != nil {
 		glog.Warningf("Could not retrieve service catalogue from consul: %v", err)
-		return nil, err
+		return []*api.CatalogService{}
 	}
 
-	return endpoints, nil
+	return endpoints
 }
 
 // ManagementPorts retries set of health check ports by instance IP.
@@ -110,12 +104,12 @@ func (c *Controller) ManagementPorts(addr string) model.PortList {
 // Instances retrieves instances for a service and its ports that match
 // any of the supplied labels. All instances match an empty tag list.
 func (c *Controller) Instances(hostname string, ports []string,
-	labels model.LabelsCollection) ([]*model.ServiceInstance, error) {
+	labels model.LabelsCollection) []*model.ServiceInstance {
 	// Get actual service by name
 	name, err := parseHostname(hostname)
 	if err != nil {
 		glog.V(2).Infof("parseHostname(%s) => error %v", hostname, err)
-		return nil, err
+		return nil
 	}
 
 	portMap := make(map[string]bool)
@@ -123,10 +117,7 @@ func (c *Controller) Instances(hostname string, ports []string,
 		portMap[port] = true
 	}
 
-	endpoints, err := c.getCatalogService(name, nil)
-	if err != nil {
-		return nil, err
-	}
+	endpoints := c.getCatalogService(name, nil)
 
 	instances := []*model.ServiceInstance{}
 	for _, endpoint := range endpoints {
@@ -136,7 +127,7 @@ func (c *Controller) Instances(hostname string, ports []string,
 		}
 	}
 
-	return instances, nil
+	return instances
 }
 
 // returns true if an instance's port matches with any in the provided list
@@ -153,17 +144,11 @@ func portMatch(instance *model.ServiceInstance, portMap map[string]bool) bool {
 }
 
 // HostInstances lists service instances for a given set of IPv4 addresses.
-func (c *Controller) HostInstances(addrs map[string]bool) ([]*model.ServiceInstance, error) {
-	data, err := c.getServices()
-	if err != nil {
-		return nil, err
-	}
+func (c *Controller) HostInstances(addrs map[string]bool) []*model.ServiceInstance {
+	data := c.getServices()
 	out := make([]*model.ServiceInstance, 0)
 	for svcName := range data {
-		endpoints, err := c.getCatalogService(svcName, nil)
-		if err != nil {
-			return nil, err
-		}
+		endpoints := c.getCatalogService(svcName, nil)
 		for _, endpoint := range endpoints {
 			if addrs[endpoint.ServiceAddress] {
 				out = append(out, convertInstance(endpoint))
@@ -171,7 +156,7 @@ func (c *Controller) HostInstances(addrs map[string]bool) ([]*model.ServiceInsta
 		}
 	}
 
-	return out, nil
+	return out
 }
 
 // Run all controllers until a signal is received

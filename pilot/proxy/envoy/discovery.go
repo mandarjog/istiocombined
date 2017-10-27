@@ -28,8 +28,8 @@ import (
 	"github.com/golang/glog"
 	multierror "github.com/hashicorp/go-multierror"
 
-	"istio.io/pilot/model"
-	"istio.io/pilot/proxy"
+	"istio.io/istio/pilot/model"
+	"istio.io/istio/pilot/proxy"
 )
 
 // DiscoveryService publishes services, clusters, and routes for all proxies
@@ -339,27 +339,11 @@ func (ds *DiscoveryService) clearCache() {
 // ListAllEndpoints responds with all Services and is not restricted to a single service-key
 func (ds *DiscoveryService) ListAllEndpoints(request *restful.Request, response *restful.Response) {
 	services := make([]*keyAndService, 0)
-
-	svcs, err := ds.Services()
-	if err != nil {
-		// If client experiences an error, 503 error will tell envoy to keep its current
-		// cache and try again later
-		errorResponse(response, http.StatusServiceUnavailable, "EDS "+err.Error())
-		return
-	}
-
-	for _, service := range svcs {
+	for _, service := range ds.Services() {
 		if !service.External() {
 			for _, port := range service.Ports {
 				hosts := make([]*host, 0)
-				instances, err := ds.Instances(service.Hostname, []string{port.Name}, nil)
-				if err != nil {
-					// If client experiences an error, 503 error will tell envoy to keep its current
-					// cache and try again later
-					errorResponse(response, http.StatusInternalServerError, "EDS "+err.Error())
-					return
-				}
-				for _, instance := range instances {
+				for _, instance := range ds.Instances(service.Hostname, []string{port.Name}, nil) {
 					// Only set tags if theres an AZ to set, ensures nil tags when there isnt
 					var t *tags
 					if instance.AvailabilityZone != "" {
@@ -396,19 +380,13 @@ func (ds *DiscoveryService) ListEndpoints(request *restful.Request, response *re
 		hostname, ports, tags := model.ParseServiceKey(request.PathParameter(ServiceKey))
 		// envoy expects an empty array if no hosts are available
 		hostArray := make([]*host, 0)
-		endpoints, err := ds.Instances(hostname, ports.GetNames(), tags)
-		if err != nil {
-			// If client experiences an error, 503 error will tell envoy to keep its current
-			// cache and try again later
-			errorResponse(response, http.StatusServiceUnavailable, "EDS "+err.Error())
-			return
-		}
-		for _, ep := range endpoints {
+		for _, ep := range ds.Instances(hostname, ports.GetNames(), tags) {
 			hostArray = append(hostArray, &host{
 				Address: ep.Endpoint.Address,
 				Port:    ep.Endpoint.Port,
 			})
 		}
+		var err error
 		if out, err = json.MarshalIndent(hosts{Hosts: hostArray}, " ", " "); err != nil {
 			errorResponse(response, http.StatusInternalServerError, "EDS "+err.Error())
 			return
@@ -438,13 +416,7 @@ func (ds *DiscoveryService) ListClusters(request *restful.Request, response *res
 			return
 		}
 
-		clusters, err := buildClusters(ds.Environment, role)
-		if err != nil {
-			// If client experiences an error, 503 error will tell envoy to keep its current
-			// cache and try again later
-			errorResponse(response, http.StatusServiceUnavailable, "CDS "+err.Error())
-			return
-		}
+		clusters := buildClusters(ds.Environment, role)
 		if out, err = json.MarshalIndent(ClusterManager{Clusters: clusters}, " ", " "); err != nil {
 			errorResponse(response, http.StatusInternalServerError, "CDS "+err.Error())
 			return
@@ -465,13 +437,7 @@ func (ds *DiscoveryService) ListListeners(request *restful.Request, response *re
 			return
 		}
 
-		listeners, err := buildListeners(ds.Environment, role)
-		if err != nil {
-			// If client experiences an error, 503 error will tell envoy to keep its current
-			// cache and try again later
-			errorResponse(response, http.StatusServiceUnavailable, "LDS "+err.Error())
-			return
-		}
+		listeners := buildListeners(ds.Environment, role)
 		out, err = json.MarshalIndent(ldsResponse{Listeners: listeners}, " ", " ")
 		if err != nil {
 			errorResponse(response, http.StatusInternalServerError, "LDS "+err.Error())
@@ -496,14 +462,7 @@ func (ds *DiscoveryService) ListRoutes(request *restful.Request, response *restf
 		}
 
 		routeConfigName := request.PathParameter(RouteConfigName)
-		routeConfig, err := buildRDSRoute(ds.Mesh, role, routeConfigName,
-			ds.ServiceDiscovery, ds.IstioConfigStore)
-		if err != nil {
-			// If client experiences an error, 503 error will tell envoy to keep its current
-			// cache and try again later
-			errorResponse(response, http.StatusServiceUnavailable, "RDS "+err.Error())
-			return
-		}
+		routeConfig := buildRDSRoute(ds.Mesh, role, routeConfigName, ds.ServiceDiscovery, ds.IstioConfigStore)
 		if out, err = json.MarshalIndent(routeConfig, " ", " "); err != nil {
 			errorResponse(response, http.StatusInternalServerError, "RDS "+err.Error())
 			return

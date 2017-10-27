@@ -18,8 +18,8 @@ import (
 	"fmt"
 	"net"
 
-	"istio.io/pilot/model"
-	"istio.io/pilot/proxy"
+	"istio.io/istio/pilot/model"
+	"istio.io/istio/pilot/proxy"
 )
 
 // Mock values
@@ -175,56 +175,35 @@ func MakeIP(service *model.Service, version int) string {
 
 // ServiceDiscovery is a mock discovery interface
 type ServiceDiscovery struct {
-	services           map[string]*model.Service
-	versions           int
-	ServicesError      error
-	GetServiceError    error
-	InstancesError     error
-	HostInstancesError error
-}
-
-// ClearErrors clear errors used for mocking failures during model.ServiceDiscovery interface methods
-func (sd *ServiceDiscovery) ClearErrors() {
-	sd.ServicesError = nil
-	sd.GetServiceError = nil
-	sd.InstancesError = nil
-	sd.HostInstancesError = nil
+	services map[string]*model.Service
+	versions int
 }
 
 // Services implements discovery interface
-func (sd *ServiceDiscovery) Services() ([]*model.Service, error) {
-	if sd.ServicesError != nil {
-		return nil, sd.ServicesError
-	}
+func (sd *ServiceDiscovery) Services() []*model.Service {
 	out := make([]*model.Service, 0, len(sd.services))
 	for _, service := range sd.services {
 		out = append(out, service)
 	}
-	return out, sd.ServicesError
+	return out
 }
 
 // GetService implements discovery interface
-func (sd *ServiceDiscovery) GetService(hostname string) (*model.Service, error) {
-	if sd.GetServiceError != nil {
-		return nil, sd.GetServiceError
-	}
-	val := sd.services[hostname]
-	return val, sd.GetServiceError
+func (sd *ServiceDiscovery) GetService(hostname string) (*model.Service, bool) {
+	val, ok := sd.services[hostname]
+	return val, ok
 }
 
 // Instances implements discovery interface
 func (sd *ServiceDiscovery) Instances(hostname string, ports []string,
-	labels model.LabelsCollection) ([]*model.ServiceInstance, error) {
-	if sd.InstancesError != nil {
-		return nil, sd.InstancesError
-	}
+	labels model.LabelsCollection) []*model.ServiceInstance {
 	service, ok := sd.services[hostname]
 	if !ok {
-		return nil, sd.InstancesError
+		return nil
 	}
 	out := make([]*model.ServiceInstance, 0)
 	if service.External() {
-		return out, sd.InstancesError
+		return out
 	}
 	for _, name := range ports {
 		if port, ok := service.Ports.Get(name); ok {
@@ -235,14 +214,11 @@ func (sd *ServiceDiscovery) Instances(hostname string, ports []string,
 			}
 		}
 	}
-	return out, sd.InstancesError
+	return out
 }
 
 // HostInstances implements discovery interface
-func (sd *ServiceDiscovery) HostInstances(addrs map[string]bool) ([]*model.ServiceInstance, error) {
-	if sd.HostInstancesError != nil {
-		return nil, sd.HostInstancesError
-	}
+func (sd *ServiceDiscovery) HostInstances(addrs map[string]bool) []*model.ServiceInstance {
 	out := make([]*model.ServiceInstance, 0)
 	for _, service := range sd.services {
 		if !service.External() {
@@ -255,7 +231,7 @@ func (sd *ServiceDiscovery) HostInstances(addrs map[string]bool) ([]*model.Servi
 			}
 		}
 	}
-	return out, sd.HostInstancesError
+	return out
 }
 
 // ManagementPorts implements discovery interface

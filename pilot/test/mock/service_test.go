@@ -17,18 +17,11 @@ package mock
 import "testing"
 
 func TestMockServices(t *testing.T) {
-	svcs, err := Discovery.Services()
-	if err != nil {
-		t.Errorf("Discovery.Services encountered error: %v", err)
-	}
-	for _, svc := range svcs {
+	for _, svc := range Discovery.Services() {
 		if err := svc.Validate(); err != nil {
 			t.Errorf("%v.Validate() => Got %v", svc, err)
 		}
-		instances, err := Discovery.Instances(svc.Hostname, svc.Ports.GetNames(), nil)
-		if err != nil {
-			t.Errorf("Discovery.Instances encountered error: %v", err)
-		}
+		instances := Discovery.Instances(svc.Hostname, svc.Ports.GetNames(), nil)
 		if svc.External() {
 			if len(instances) > 0 {
 				t.Errorf("Discovery.Instances => Got %d, want 0 for external service", len(instances))

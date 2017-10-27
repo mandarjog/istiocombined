@@ -21,7 +21,7 @@ import (
 	"github.com/golang/glog"
 	"github.com/hashicorp/consul/api"
 
-	"istio.io/pilot/model"
+	"istio.io/istio/pilot/model"
 )
 
 const (
@@ -130,7 +130,7 @@ func serviceHostname(name string) string {
 // parseHostname extracts service name from the service hostname
 func parseHostname(hostname string) (name string, err error) {
 	parts := strings.Split(hostname, ".")
-	if len(parts) < 1 || parts[0] == "" {
+	if len(parts) < 1 {
 		err = fmt.Errorf("missing service name from the service hostname %q", hostname)
 		return
 	}
