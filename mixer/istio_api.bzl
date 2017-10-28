@@ -33,7 +33,7 @@ load("@org_pubref_rules_protobuf//go:rules.bzl", "go_proto_library")
 
 go_proto_library(
     name = "broker/v1/config",
-    srcs = glob(["broker/v1/config/*.proto"]),
+    protos = glob(["broker/v1/config/*.proto"]),
     inputs = [
         "@com_github_google_protobuf//:well_known_protos",
     ],
