@@ -1124,3 +1124,17 @@ go_repository(
 #    commit = "v1.7.0",
 #    importpath = "google.golang.org/grpc",
 #)
+
+# broker
+go_repository(
+    name = "com_github_gorilla_mux",
+    commit = "bcd8bc72b08df0f70df986b97f95590779502d31",  # May 20, 2017 (1.4.0)
+    importpath = "github.com/gorilla/mux",
+)
+
+go_repository(
+    name = "com_github_gorilla_context",
+    commit = "08b5f424b9271eedf6f9f0ce86cb9396ed337a42",  # Aug 17, 2016
+    importpath = "github.com/gorilla/context",
+)
+

@@ -34,7 +34,7 @@ genrule(
     name = "crd",
     srcs = ["template.go"],
     outs = ["types.go"],
-    cmd = "pkg/platform/kube/crd/generate.sh > $@",
+    cmd = "./$(location generate.sh) $(location template.go) > $@",
     tools = ["generate.sh"],
 )
 

@@ -97,6 +97,6 @@ cat <<EOF
 EOF
 
 for crd in $CRDS $TEST; do
-  sed -e "1,22d;s/IstioKind/$crd/g" pkg/platform/kube/crd/template.go
+  sed -e "1,22d;s/IstioKind/$crd/g" $1
 done
 
